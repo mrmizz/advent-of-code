@@ -5,6 +5,7 @@ use std::path::Path;
 use error::Error;
 
 mod error;
+mod parser;
 
 fn main() -> Result<(), Error> {
     let mut total: u32 = 0;
@@ -12,10 +13,10 @@ fn main() -> Result<(), Error> {
         for line in lines {
             if let Ok(string) = line {
                 println!("{}", string);
-                let chars = string.chars();
-                let reversed = chars.clone().rev();
-                let left = linear_search_for_int(chars);
-                let right = linear_search_for_int(reversed);
+                let chars = &mut string.chars();
+                let reversed = &mut chars.clone().rev().peekable();
+                let left = linear_search(&mut chars.peekable());
+                let right = linear_search(reversed);
                 let sum = concat(left, right)?;
                 dbg!("left: {}", left);
                 dbg!("right: {}", right);
@@ -35,17 +36,23 @@ fn concat(left: Option<u32>, right: Option<u32>) -> Result<u32, Error> {
     }
 }
 
-fn linear_search_for_int(chars: impl IntoIterator<Item = char>) -> Option<u32> {
-    let mut maybe_int = None;
-    for char in chars {
-        if let Some(int) = char.to_digit(10) {
-            println!("{}: {}", char, int);
-            maybe_int = Some(int);
-            break;
-        }
-        println!("{}", char);
+fn linear_search<Iter: Iterator<Item = char>>(
+    chars: &mut std::iter::Peekable<Iter>,
+) -> Option<u32> {
+    let next = chars.peek();
+    match next {
+        Some(char) => match char.to_digit(10) {
+            Some(int) => {
+                chars.next();
+                Some(int)
+            }
+            None => match parser::wti::parse(chars) {
+                parser::wti::Int::Hit(int) => Some(int),
+                parser::wti::Int::Miss => linear_search(chars),
+            },
+        },
+        None => None,
     }
-    maybe_int
 }
 
 fn read_lines<P: AsRef<Path>>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>> {
